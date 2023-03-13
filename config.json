@@ -1,0 +1,48 @@
+{
+  "address": "127.0.0.1",
+  "port": 9900,
+  "reload_seconds": 60,
+  "admin_user": "admin",
+  "admin_pwd": "123456",
+  "targets": [
+    {
+      "id": "test",
+      "open": true,
+
+      "filters": ["ERROR"],
+      "files": [
+        {
+          "name": "file11",
+          "path": "/root/11.txt",
+          "ssh_host": "127.0.0.1",
+          "ssh_port": 22,
+          "ssh_user": "root",
+          "ssh_pwd": "123456"
+        }
+      ]
+    }
+  ],
+  "filters": [
+    {
+      "id": "ERROR",
+      "script": "package script\n\nimport (\n\t\"encoding/json\"\n\t\"regexp\"\n\t\"sort\"\n\t\"strings\"\n)\n\n//=============================== event ================================================\n// ERROR test event {\"req_type\": \"event1\"}\nvar vModuleEventType = regexp.MustCompile(`\"req_type\": \"([^\"]*)\"`)\nvar vModuleEventTotal = make(map[string]int)\n\nfunc ModuleEvent(str string) (ok bool, summary string, ignore bool, err error) {\n\tif strings.Contains(str, \"test event\") {\n\t\tRecordAmount++\n\t\tok = true\n\t\tsummary = findString(vModuleEventType, str)\n\t\tvModuleEventTotal[summary]++\n\t\treturn\n\t}\n\treturn\n}\n\nfunc ModuleEventSummary() string {\n\treturn debugNameAmount(vModuleEventTotal)\n}\n\n//=============================== base ================================================\n\nvar RecordAmount = 0\nvar RecordModule string\n\nfunc CheckBase(str string) (ok bool, summary string, ignore bool, err error) {\n\tif !strings.Contains(str, \"ERROR\") {\n\t\treturn\n\t}\n\n\tok = true\n\tRecordAmount = 0\n\tRecordModule = findString(vCheckUnknownCallModule, str)\n\treturn\n}\n\nvar vCheckUnknownServiceTotal = make(map[string]int)\nvar vCheckUnknownCallModule = regexp.MustCompile(`\"module\": \"([^\"]*)\"`)\n\nfunc CheckUnknown(str string) (ok bool, summary string, ignore bool, err error) {\n\tif RecordAmount == 0 {\n\t\tsummary = RecordModule\n\t\tvCheckUnknownServiceTotal[summary]++\n\t\tok = true\n\t\treturn\n\t}\n\treturn\n}\n\nfunc CheckUnknownSummary() string {\n\treturn debugNameAmount(vCheckUnknownServiceTotal)\n}\n\n//=============================== help ================================================\n\nfunc findString(r *regexp.Regexp, str string) string {\n\tresult := r.FindStringSubmatch(str)\n\tif len(result) != 2 {\n\t\treturn \"\"\n\t}\n\treturn result[1]\n}\n\ntype NameAmountInfo struct {\n\tName   string\n\tAmount int\n}\n\nfunc debugNameAmount(data map[string]int) string {\n\tlist := make([]NameAmountInfo, 0)\n\tfor k, v := range data {\n\t\tlist = append(list, NameAmountInfo{Name: k, Amount: v})\n\t}\n\tsort.Slice(list, func(i, j int) bool { return list[i].Amount > list[j].Amount })\n\tbuff, err := json.Marshal(list)\n\tif err != nil {\n\t\treturn err.Error()\n\t}\n\tif len(buff) > 1024 {\n\t\treturn string(buff[:1024]) + \"...\"\n\t}\n\treturn string(buff)\n}\n",
+      "check_function_name": "script.CheckBase",
+      "sub_filters": [
+        {
+          "id": "event",
+          "desc": "",
+          "amount": 100,
+          "check_function_name": "script.ModuleEvent",
+          "summary_function_name": "script.ModuleEventSummary"
+        },
+        {
+          "id": "unknown",
+          "desc": "",
+          "amount": 500,
+          "check_function_name": "script.CheckUnknown",
+          "summary_function_name": "script.CheckUnknownSummary"
+        }
+      ]
+    }
+  ]
+}
