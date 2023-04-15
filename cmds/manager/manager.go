@@ -28,16 +28,16 @@ func newManager(configStr string, config *define.Config, logger logger.Log) (*ma
 }
 
 type manager struct {
-	config    *define.Config
-	configStr string
-	co        *co.Coroutine
-	logger    logger.Log
-	ctx       context.Context
-	cancel    context.CancelFunc
+	config              *define.Config
+	configStr           string
+	waitReloadConfigStr string
+
+	co     *co.Coroutine
+	logger logger.Log
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	clients map[string]*client
-
-	waitReloadConfigStr string
 }
 
 func (mgr *manager) init() error {
@@ -277,24 +277,19 @@ func (mgr *manager) LoadTargetRecords(ctx context.Context, targetID string, filt
 	var res [][]string
 	sessionID := mgr.co.PrepareWait()
 	client.co.RunAsync(client.ctx, func(ctx context.Context) error {
-		data := client.getSubFilterRecordData(filterID, subFilterID)
-		if data == nil {
+		filter := client.getFilterData(filterID)
+		if filter == nil {
 			return fmt.Errorf("filter not found:%s %s", filterID, subFilterID)
 		}
-		summaryInfo := ""
-		if data.SummaryFn != nil {
-			summaryInfo = data.SummaryFn()
-		}
 
-		res = append(res, []string{
-			clientID,
-			filterID,
-			subFilterID,
-			fmt.Sprintf("total:%d ignore:%d print:%d", data.TotalAmount, data.IgnoreAmount, data.PrintAmount),
-			summaryInfo,
-		})
-		for i := len(data.Lines) - 1; i >= 0; i-- {
-			res = append(res, []string{clientID + "->" + data.Files[i], filterID, subFilterID, data.Summarys[i], data.Lines[i]})
+		param := &ScriptParam{Type: "records", ReqRecordsFilter: subFilterID}
+		filter.EntryFunc(param)
+		for i := 0; i < len(param.ResRecordsLogs); i++ {
+			summary := ""
+			if i < len(param.ResRecordsSummary) {
+				summary = param.ResRecordsSummary[i]
+			}
+			res = append(res, []string{clientID, filterID, subFilterID, summary, param.ResRecordsLogs[i]})
 		}
 		return nil
 	}, &co.RunOptions{Result: func(err error) {

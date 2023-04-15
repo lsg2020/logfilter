@@ -5,14 +5,29 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"reflect"
 
 	"github.com/lsg2020/logfilter/define"
 	"github.com/traefik/yaegi/interp"
 	"github.com/traefik/yaegi/stdlib"
 )
 
-type ScriptCheckFn func(str string) (ok bool, summary string, ignore bool, err error)
-type ScriptSummaryFn func() string
+type ScriptParam struct {
+	Type string
+
+	// log
+	ReqLogFile string
+	ReqLogStr  string
+
+	// filters
+	ResFilters []string
+
+	// records
+	ReqRecordsFilter  string
+	ResRecordsSummary []string
+	ResRecordsLogs    []string
+}
+type ScriptFn func(*ScriptParam)
 
 func LoadScript(script string) (*interp.Interpreter, error) {
 	i := interp.New(interp.Options{})
@@ -20,6 +35,13 @@ func LoadScript(script string) (*interp.Interpreter, error) {
 		return nil, err
 	}
 	if err := i.Use(interp.Symbols); err != nil {
+		return nil, err
+	}
+	if err := i.Use(map[string]map[string]reflect.Value{
+		"logfilter/logfilter": {
+			"ScriptParam": reflect.ValueOf((*ScriptParam)(nil)),
+		},
+	}); err != nil {
 		return nil, err
 	}
 	_, err := i.Eval(script)
@@ -30,26 +52,14 @@ func LoadScript(script string) (*interp.Interpreter, error) {
 	return i, nil
 }
 
-func LoadScriptCheckFunction(i *interp.Interpreter, fnName string) (ScriptCheckFn, error) {
+func LoadScriptEntryFunction(i *interp.Interpreter, fnName string) (ScriptFn, error) {
 	v, err := i.Eval(fnName)
 	if err != nil {
 		return nil, fmt.Errorf("not exists function %s, %w", fnName, err)
 	}
-	check, ok := v.Interface().(func(str string) (ok bool, summary string, ignore bool, err error))
+	check, ok := v.Interface().(func(*ScriptParam))
 	if !ok {
-		return nil, fmt.Errorf("function %s need func(str string) (ok bool, summary string, ignore bool, err error), %w", fnName, err)
-	}
-	return check, nil
-}
-
-func LoadScriptSummaryFunction(i *interp.Interpreter, fnName string) (ScriptSummaryFn, error) {
-	v, err := i.Eval(fnName)
-	if err != nil {
-		return nil, fmt.Errorf("not exists function %s, %w", fnName, err)
-	}
-	check, ok := v.Interface().(func() string)
-	if !ok {
-		return nil, fmt.Errorf("function %s need func() string, %w", fnName, err)
+		return nil, fmt.Errorf("function %s need func(str string), %w", fnName, err)
 	}
 	return check, nil
 }
@@ -107,22 +117,9 @@ func CheckConfig(c *define.Config) error {
 		if err != nil {
 			return fmt.Errorf("filter:%s base script error, %w", filter.ID, err)
 		}
-		_, err = LoadScriptCheckFunction(i, filter.CheckFunctionName)
+		_, err = LoadScriptEntryFunction(i, filter.EntryFunc)
 		if err != nil {
-			return fmt.Errorf("filter:%s base script %s error, %w", filter.ID, filter.CheckFunctionName, err)
-		}
-		for _, sub := range filter.SubFilters {
-			_, err = LoadScriptCheckFunction(i, sub.CheckFunctionName)
-			if err != nil {
-				return fmt.Errorf("filter:%s sub script %s:%s error, %w", filter.ID, sub.ID, sub.CheckFunctionName, err)
-			}
-
-			if sub.SummaryFunctionName != "" {
-				_, err = LoadScriptSummaryFunction(i, sub.SummaryFunctionName)
-				if err != nil {
-					return fmt.Errorf("filter:%s sub script %s:%s error, %w", filter.ID, sub.ID, sub.SummaryFunctionName, err)
-				}
-			}
+			return fmt.Errorf("filter:%s base script %s error, %w", filter.ID, filter.EntryFunc, err)
 		}
 	}
 
@@ -130,23 +127,9 @@ func CheckConfig(c *define.Config) error {
 }
 
 type filterData struct {
-	ID         string
-	Cfg        *define.ConfigFilterInfo
-	FilterFn   ScriptCheckFn
-	SubFilters []*subFilterRecordData
-}
-
-type subFilterRecordData struct {
-	ID           string
-	FilterFn     ScriptCheckFn
-	SummaryFn    ScriptSummaryFn
-	Limit        int
-	Files        []string
-	Lines        []string
-	Summarys     []string
-	IgnoreAmount uint64
-	TotalAmount  uint64
-	PrintAmount  uint64
+	ID        string
+	Cfg       *define.ConfigFilterInfo
+	EntryFunc ScriptFn
 }
 
 type HTTPAuthMiddleware struct {

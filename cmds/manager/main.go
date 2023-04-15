@@ -16,7 +16,6 @@ import (
 
 const (
 	defaultReloadConfig = time.Second * 60
-	defaultRecordAmount = 500
 )
 
 var (
@@ -78,7 +77,7 @@ func main() {
 	})
 
 	// start http serve
-	server := http.Server{Handler: router, Addr: fmt.Sprintf("%s:%d", "0.0.0.0", config.Port)}
+	server := http.Server{Handler: router, Addr: fmt.Sprintf("%s:%d", config.Address, config.Port)}
 	err = server.ListenAndServe()
 	if err != nil {
 		log.Fatalln("http start failed", err)

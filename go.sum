@@ -8,6 +8,8 @@ github.com/helloyi/go-sshclient v1.1.1 h1:yRcrc/Q1nJ2hYbtVFfBBTyneQLqr2vy/jD3/Gn
 github.com/helloyi/go-sshclient v1.1.1/go.mod h1:NrhRWsYJDjoQXTDWZ4YtVk84wZ4LK3NSM9jD2TZDAm8=
 github.com/lsg2020/goco v0.0.0-20230307172003-a2a0337b27d9 h1:rlZUEXifL1Hia/zgK79CL4l2r7tM705SIUCeZ91JseE=
 github.com/lsg2020/goco v0.0.0-20230307172003-a2a0337b27d9/go.mod h1:qaDk/jMHHQ+q4WzdEtoD5hKqJ24Llfe7JjGO6rajSsE=
+github.com/lsg2020/goco v0.0.0-20230414151858-e9a1489d99f1 h1:K3P77qCkOKYP0+5UkvQR8Oa8GCoeeVZMkK/zMCgJE5E=
+github.com/lsg2020/goco v0.0.0-20230414151858-e9a1489d99f1/go.mod h1:qaDk/jMHHQ+q4WzdEtoD5hKqJ24Llfe7JjGO6rajSsE=
 github.com/nxadm/tail v1.4.8 h1:nPr65rt6Y5JFSKQO7qToXr7pePgD6Gwiw05lkbyAQTE=
 github.com/nxadm/tail v1.4.8/go.mod h1:+ncqLTQzXmGhMZNUePPaPqPvBxHAIsmXswZKocGu+AU=
 github.com/tidwall/gjson v1.14.1 h1:iymTbGkQBhveq21bEvAQ81I0LEBork8BFe1CUZXdyuo=

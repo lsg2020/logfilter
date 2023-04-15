@@ -38,7 +38,7 @@ func (c *client) Start(r func(error)) {
 		r(err)
 		return
 	}
-	err = c.co.RunAsync(c.ctx, c.monitor, &co.RunOptions{RunLimitTime: -1})
+	err = c.co.RunAsync(c.ctx, c.monitor, &co.RunOptions{})
 	if err != nil {
 		r(err)
 		return
@@ -252,50 +252,15 @@ func (c *client) build(config *define.Config) error {
 		if err != nil {
 			return fmt.Errorf("client config load base script failed, id:%s, %w", filterID, err)
 		}
-		f, err := LoadScriptCheckFunction(i, cfgFilter.CheckFunctionName)
+		f, err := LoadScriptEntryFunction(i, cfgFilter.EntryFunc)
 		if err != nil {
 			return fmt.Errorf("client config load base script failed, id:%s, %w", filterID, err)
 		}
 
-		subs := make([]*subFilterRecordData, 0, len(cfgFilter.SubFilters))
-		for _, sub := range cfgFilter.SubFilters {
-			f, err := LoadScriptCheckFunction(i, sub.CheckFunctionName)
-			if err != nil {
-				return fmt.Errorf("client config load sub script failed, id:%s sub:%s, %w", filterID, sub.ID, err)
-			}
-			var summaryF ScriptSummaryFn
-			if sub.SummaryFunctionName != "" {
-				summaryF, err = LoadScriptSummaryFunction(i, sub.SummaryFunctionName)
-				if err != nil {
-					return fmt.Errorf("client config load sub script failed, id:%s sub:%s, %w", filterID, sub.ID, err)
-				}
-			}
-
-			d := &subFilterRecordData{
-				ID:        sub.ID,
-				FilterFn:  f,
-				SummaryFn: summaryF,
-				Limit:     sub.Amount,
-			}
-			if d.Limit == 0 {
-				d.Limit = defaultRecordAmount
-			}
-			old := c.getSubFilterRecordData(filterID, sub.ID)
-			if old != nil {
-				d = old
-				d.FilterFn = f
-				d.SummaryFn = summaryF
-				d.Limit = sub.Amount
-			}
-
-			subs = append(subs, d)
-		}
-
 		filters[filterID] = &filterData{
-			ID:         filterID,
-			Cfg:        cfgFilter,
-			FilterFn:   f,
-			SubFilters: subs,
+			ID:        filterID,
+			Cfg:       cfgFilter,
+			EntryFunc: f,
 		}
 	}
 
@@ -324,28 +289,14 @@ func (c *client) LoadTargetSubFilter(searchFilter string) ([]string, error) {
 		return nil, fmt.Errorf("filter not found, client:%s filter:%s", c.ID, searchFilter)
 	}
 
-	res := make([]string, 0, 128)
-	for _, sub := range f.SubFilters {
-		res = append(res, sub.ID)
-	}
-	return res, nil
+	param := &ScriptParam{Type: "filters"}
+	f.EntryFunc(param)
+
+	return param.ResFilters, nil
 }
 
 func (c *client) getFilterData(id string) *filterData {
 	return c.filters[id]
-}
-
-func (c *client) getSubFilterRecordData(id string, subID string) *subFilterRecordData {
-	filters, ok := c.filters[id]
-	if !ok {
-		return nil
-	}
-	for _, sub := range filters.SubFilters {
-		if sub.ID == subID {
-			return sub
-		}
-	}
-	return nil
 }
 
 func (c *client) filterLogger(file string, line string) {
@@ -353,47 +304,8 @@ func (c *client) filterLogger(file string, line string) {
 		return
 	}
 
-	record := func(data *subFilterRecordData, str string, summary string) {
-		data.Files = append(data.Files, file)
-		data.Lines = append(data.Lines, str)
-		data.Summarys = append(data.Summarys, summary)
-		if len(data.Files) > data.Limit {
-			data.Files = data.Files[len(data.Files)-data.Limit:]
-		}
-		if len(data.Lines) > data.Limit {
-			data.Lines = data.Lines[len(data.Lines)-data.Limit:]
-		}
-		if len(data.Summarys) > data.Limit {
-			data.Summarys = data.Summarys[len(data.Summarys)-data.Limit:]
-		}
-	}
-
 	for _, filter := range c.filters {
-		baseOK, _, _, err := filter.FilterFn(line)
-		if err != nil {
-			c.logger.Log(logger.LogLevelError, "client base filter error, id:%s line:%s %v", filter.ID, line, err)
-			continue
-		}
-		if !baseOK {
-			continue
-		}
-
-		for _, sub := range filter.SubFilters {
-			ok, summary, ignore, err := sub.FilterFn(line)
-			if err != nil {
-				record(sub, line, "filter err:"+err.Error())
-				continue
-			}
-			if !ok {
-				continue
-			}
-			sub.TotalAmount++
-			if ignore {
-				sub.IgnoreAmount++
-				continue
-			}
-			sub.PrintAmount++
-			record(sub, line, summary)
-		}
+		param := &ScriptParam{Type: "log", ReqLogFile: file, ReqLogStr: line}
+		filter.EntryFunc(param)
 	}
 }

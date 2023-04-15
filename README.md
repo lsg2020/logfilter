@@ -8,7 +8,7 @@
 ## 使用
 * 构建`cmds/manager` 并配置`config.json`, 运行在管理机上
 * grafana配置
-  * 安装`json`插件, 版本 <= 0.5.0 ![img_2.png](doc/images/img_2.png)
+  * 安装`json`插件 ![img_2.png](doc/images/img_2.png)
   * 添加json数据源 url: http://127.0.0.1:9900
   * 添加dashboard 配置Variables:![img_3.png](doc/images/img_3.png)
       * name:`target` query:`{"type": "target"}`

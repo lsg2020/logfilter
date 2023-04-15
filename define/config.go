@@ -18,17 +18,10 @@ type ConfigLogFileInfo struct {
 }
 
 type ConfigFilterInfo struct {
-	ID                string `json:"id"`
-	Desc              string `json:"desc"`
-	Script            string `json:"script"`
-	CheckFunctionName string `json:"check_function_name"`
-	SubFilters        []struct {
-		ID                  string `json:"id"`
-		Desc                string `json:"desc"`
-		Amount              int    `json:"amount"`
-		CheckFunctionName   string `json:"check_function_name"`
-		SummaryFunctionName string `json:"summary_function_name"`
-	} `json:"sub_filters"`
+	ID        string `json:"id"`
+	Desc      string `json:"desc"`
+	Script    string `json:"script"`
+	EntryFunc string `json:"entry_func"`
 }
 
 type Config struct {
